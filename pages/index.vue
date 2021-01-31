@@ -1,7 +1,10 @@
 <template>
   <div id="index">
     <div class="input-container">
-      <h1>Sequential Circuit Binary Multiplier</h1>
+      <h1>
+        Binary Multiplication<br>
+        (Pencil and Paper)
+      </h1>
       <label for="m-text">
         M (Multiplicand)
       </label>
@@ -43,7 +46,8 @@
         <button :disabled="show || help" @click="multiply()">
           SUBMIT (↵)
         </button>
-        <button :disabled="show || help" @click="showHelp()">
+        <!-- <button :disabled="show || help" @click="showHelp()"> -->
+        <button disabled>
           <u>H</u>ELP
         </button>
       </div>
@@ -52,6 +56,17 @@
           Show Se<u>t</u>ting: {{ showSettings }}
         </button>
       </div>
+      <select v-model="algorithm" class="select-container">
+        <option value="normal" selected>
+          Normal
+        </option>
+        <option value="booth">
+          Booth's
+        </option>
+        <option value="extbooth">
+          Extended Booth's
+        </option>
+      </select>
     </div>
 
     <div v-if="show || help" id="dim" />
@@ -72,86 +87,100 @@
               Show Se<u>t</u>ting: {{ showSettings }}
             </button>
           </div>
+          <select v-model="algorithm" class="select-container" @change="algo()">
+            <option value="normal">
+              Normal
+            </option>
+            <option value="booth">
+              Booth's
+            </option>
+            <option value="extbooth">
+              Extended Booth's
+            </option>
+          </select>
         </div>
 
-        <div class="mb-8">
+        <div class="mb-8" :style="{ 'font-size': '20px' }">
           +M: {{ mTextUsed }} <br>
           -M: {{ mNegText }}
         </div>
 
-        <div v-if="showSettings === 'ALL'">
-          <table id="table" class="mb-8">
-            <tr>
-              <td>STEP</td>
-              <td>A</td>
-              <td>Q</td>
-              <td>Q-1</td>
-              <td>ACTION</td>
+        <div v-if="showSettings === 'ALL'" class="center">
+          <table class="mb-8">
+            <tr><td>{{ mTextUsed }}</td></tr>
+            <tr v-if="algorithm === 'normal'">
+              <td class="border-bottom">
+                {{ qTextUsed }}
+              </td>
             </tr>
-            <tr
-              v-for="(step, i) in steps"
-              :key="i"
-            >
-              <td v-if="step.action && step.action !== 'SHIFT'">
-                {{ step.step }}
+            <tr v-else>
+              <td class="border-bottom">
+                {{ boothString() }}
               </td>
-              <td v-else-if="step.step === 0">
-                INIT
+            </tr>
+            <tr v-for="bin in steps[algorithm]" :key="bin">
+              <td class="left-align">
+                {{ bin }}
               </td>
-              <td v-else />
-              <td>
-                {{ step.a }}
+            </tr>
+            <tr>
+              <td class="border-top">
+                {{ dec2bin(ans).padStart(size * 2, '0') }}
               </td>
-              <td> {{ step.q }} </td>
-              <td> {{ step.q1 }} </td>
-              <td> {{ step.action }} </td>
             </tr>
           </table>
-          <div class="mb-8">
-            ANSWER: {{ dec2bin(ans).padStart(size * 2, '0') }}
-          </div>
         </div>
-        <div v-else-if="showSettings === 'STEPS'">
+        <div v-else-if="showSettings === 'STEPS'" class="center">
           <table id="table" class="mb-8">
-            <tr>
-              <td />
-              <td>STEP</td>
-              <td>A</td>
-              <td>Q</td>
-              <td>Q-1</td>
-              <td>ACTION</td>
+            <tr><td>{{ mTextUsed }}</td></tr>
+            <tr v-if="algorithm === 'normal'">
+              <td class="border-bottom steps">
+                <span
+                  v-for="(b, i) in qTextUsed"
+                  :key="i"
+                >
+                  <span v-if="i === qTextUsed.length - index" style="color: red;">
+                    {{ b }}
+                  </span>
+                  <span v-else>
+                    {{ b }}
+                  </span>
+                </span>
+              </td>
             </tr>
-            <tr
-              v-for="(step, i) in currentSteps"
-              :key="i"
-            >
-              <td v-if="index - 1 === i">
-                &gt;
+            <tr v-else>
+              <td class="border-bottom steps">
+                <span
+                  v-for="(b, i) in (algorithm === 'booth' ? qBooth : qExtBooth)"
+                  :key="i"
+                >
+                  <span v-if="i === (algorithm === 'booth' ? qBooth : qExtBooth).length - index" style="color: red;">
+                    {{ b }}
+                  </span>
+                  <span v-else>
+                    {{ b }}
+                  </span>
+                </span>
               </td>
-              <td v-else />
-              <td v-if="step.action && step.action !== 'SHIFT'">
-                {{ step.step }}
+            </tr>
+            <tr v-for="bin in currentSteps" :key="bin">
+              <td class="left-align">
+                {{ bin }}
               </td>
-              <td v-else-if="step.step === 0">
-                INIT
+            </tr>
+            <tr v-if="index === steps[algorithm].length">
+              <td class="border-top">
+                {{ dec2bin(ans).padStart(size * 2, '0') }}
               </td>
-              <td v-else />
-              <td> {{ step.a }} </td>
-              <td> {{ step.q }} </td>
-              <td> {{ step.q1 }} </td>
-              <td> {{ step.action }} </td>
             </tr>
           </table>
-
-          <div v-if="index === steps.length" class="mb-8">
-            ANSWER: {{ dec2bin(ans).padStart(size * 2, '0') }}
-          </div>
-
+        </div>
+        <div v-if="showSettings === 'STEPS'">
           <div class="mb-8" :style="{ width: '100%' }">
             <button
-              v-if="index < steps.length"
+              v-if="index < steps[algorithm].length"
               :style="{ width: '100%' }"
-              @click="index = size * 2 + 1"
+              @click="index = steps[algorithm].length"
             >
               SHOW ALL
             </button>
@@ -161,7 +190,7 @@
               &lt;- <u>P</u>REV
             </button>
             <button
-              v-if="index < steps.length"
+              v-if="index < steps[algorithm].length"
               class="float-right"
               @click="changeIndex(1)"
             >
@@ -188,6 +217,24 @@ const LABELS = {
   q: 'Multiplier'
 }
 
+const BOOTH_MAP = {
+  '00': 0,
+  '01': 1,
+  10: -1,
+  11: 0
+}
+
+const EXT_BOOTH_MAP = {
+  '000': 0,
+  111: 0,
+  '001': 1,
+  '010': 1,
+  101: -1,
+  110: -1,
+  '011': 2,
+  100: -2
+}
+
 export default {
   data () {
     return {
@@ -195,13 +242,22 @@ export default {
       mText: '0',
       mTextUsed: '',
       qText: '0',
+      qTextUsed: '',
+      qBooth: [],
+      qExtBooth: [],
       mNegText: '0',
       m: 0,
+      mNeg: 0,
       a: 0,
       q: 0,
       ans: 0,
       size: 0,
-      steps: [],
+      steps: {
+        normal: undefined,
+        booth: undefined,
+        extbooth: undefined
+      },
+      algorithm: 'normal', // normal, booth, extbooth
       index: 0,
       showSettings: 'ALL',
       help: false,
@@ -212,9 +268,26 @@ export default {
 
   computed: {
     currentSteps () {
-      return this.show && this.steps.length > 0
-        ? this.steps.slice(0, this.index)
+      return this.show && this.steps[this.algorithm].length > 0
+        ? this.steps[this.algorithm].slice(0, this.index)
         : []
+    },
+
+    boothString () {
+      return () => {
+        const booth = this.algorithm === 'booth' ? this.qBooth : this.qExtBooth
+        const n = booth.length
+        let temp = ''
+        let t
+        for (let i = 0; i < n; i++) {
+          t = booth[i]
+          temp += t > 0
+            ? `+${t}`
+            : (t === 0 ? '0' : t)
+        }
+
+        return temp
+      }
     }
   },
 
@@ -271,44 +344,53 @@ export default {
         : num << shift
     },
 
+    repeatStr (str, n) {
+      let temp = ''
+      for (let i = 0; i < n; i++) {
+        temp += str
+      }
+      return temp
+    },
+
     // Saves the steps into a text file and can be downloaded
     save () {
-      if (this.steps.length === 0) { return }
+      if (this.steps[this.algorithm].length === 0) { return }
       // Convert steps to string
       // Set Given
-      const empty = ''.padStart(this.size, '=')
-      let text = `Sequential Circuit Binary Multiplier Results
+      let text = `Binary Multiplication (Pencil&Paper)
+${this.algorithm === 'booth' ? 'Booth\'s Algorithm' : 'Extended Booth\'s Algorithm'}
 
-+M = ${this.mTextUsed}
--M = ${this.mNegText}
++M: ${this.mTextUsed}
+-M: ${this.mNegText}
 
-+======+=${empty}=+=${empty}=+=====+========+
-| STEP | ${'A'.padStart(this.size, ' ')} | ${'Q'.padStart(this.size, ' ')} | Q-1 | ACTION |
-|======+=${empty}=+=${empty}=|=====|========+
 `
-      for (const index in this.steps) {
-        const step = this.steps[index]
-        if (index === '0') {
-          text += `| INIT | ${step.a} | ${step.q} |  ${step.q1}  |        |\n`
-        } else {
-          if (step.action && !step.action.startsWith('SHIFT')) {
-            text += `| ${step.step.toString().padStart(4, ' ')} | `
-          } else {
-            text += '|      | '
-          }
-          text += `${step.a} | ${step.q} |  ${step.q1}  |  ${step.action} |\n`
-        }
+      if (this.algorithm === 'normal') {
+        const space = this.repeatStr(' ', this.size)
+        text += `${space}${this.mTextUsed}\n${space}${this.qTextUsed}\n`
+      } else {
+        const space = this.repeatStr(' ', this.size * 2 - this.boothString().length)
+        text += `${this.repeatStr(' ', this.size)}${this.mTextUsed}\n${space}${this.boothString()}\n`
       }
-      text += `+======+=${empty}=+=${empty}=+=====+========+\n\n`
 
-      text += `ANS = ${this.dec2bin(this.ans, this.size * 2)}`
+      const line = this.repeatStr('=', this.size * 2)
+
+      text += `${line}\n`
+
+      const n = this.steps[this.algorithm].length
+      for (let i = 0; i < n; i++) {
+        text += `${this.steps[this.algorithm][i]}\n`
+      }
+
+      text += `${line}
+${this.dec2bin(this.ans).padStart(this.size * 2, '0')}
+`
       const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
       saveAs(blob, 'results.txt')
     },
 
     // Updates the step counter
     changeIndex (val) {
-      this.index = Math.min(this.steps.length, Math.max(1, this.index + val))
+      this.index = Math.min(this.steps[this.algorithm].length, Math.max(1, this.index + val))
     },
 
     // Toggles show settings
@@ -322,6 +404,14 @@ export default {
       return bin.length < size
         ? bin.padStart(size, '0')
         : bin.substring(bin.length - size)
+    },
+
+    zeroExt (bin, size) {
+      return bin.padStart(size, '0')
+    },
+
+    signExt (bin, size) {
+      return bin.padStart(size, bin.charAt(0) === '0' ? '0' : '1')
     },
 
     // Checks whether the string number is binary
@@ -388,79 +478,167 @@ export default {
 
       // Pad zero
       this.mTextUsed = this.mText.padStart(this.size, '0')
+      this.qTextUsed = this.qText.padStart(this.size, '0')
 
-      this.algorithm()
+      // get neg
+      this.mNeg = this.shiftLeft(1, this.size) - this.m
+      this.mNegText = this.dec2bin(this.mNeg, this.size)
+
+      this.algo()
     },
 
-    algorithm () {
-      const inc = this.shiftLeft(1, this.size)
-      const mNeg = inc - this.m
+    algo () {
+      this.index = 1
+      switch (this.algorithm) {
+        case 'normal':
+          if (this.steps.normal === undefined) { this.normalAlgo() }
+          break
+        case 'booth':
+          if (this.steps.booth === undefined) {
+            this.boothAlgo()
+          }
+          break
+        case 'extbooth':
+          if (this.steps.extbooth === undefined) { this.extBoothAlgo() }
+          break
+        default:
+          break
+      }
+    },
 
-      // Get -M
-      this.mNegText = this.dec2bin(mNeg, this.size)
+    normalAlgo () {
+      const currentSize = this.size * 2
+      let addNeg = false
 
-      // 0 is SUB M
-      // 1 is NO OP
-      // 2 is ADD M
-      const add = [mNeg, 0, this.m]
-      const actions = ['SUB M', 'NO OP', 'ADD M']
-
-      let q1 = 0
-
-      // Add initialize step
-      this.steps.push({
-        step: 0,
-        a: ''.padStart(this.size, '0'),
-        q: this.qText.padStart(this.size, '0'),
-        q1: 0
-      })
-
-      let temp, aText, qText
-      for (let i = 0; i < this.size; i++) {
-        // ADD, SUB, OR NO OP
-        temp = q1 - (this.q & 1) + 1
-        this.a = (this.a + add[temp]) % inc
-
-        aText = this.dec2bin(this.a, this.size)
-        qText = this.dec2bin(this.q, this.size)
-        this.steps.push({
-          step: i + 1,
-          a: aText,
-          q: qText,
-          q1,
-          action: actions[temp]
-        })
-
-        // SHIFT
-        q1 = this.q & 1
-
-        if (this.a & 1) {
-          this.q += inc
-        }
-        this.q >>= 1
-
-        if (aText.charAt(0) === '1') {
-          this.a += inc
-        }
-        this.a >>= 1
-
-        aText = this.dec2bin(this.a, this.size)
-        qText = this.dec2bin(this.q, this.size)
-        this.steps.push({
-          step: i + 1,
-          a: aText,
-          q: qText,
-          q1,
-          action: 'SHIFT'
-        })
+      // check if q is negative
+      if (this.qTextUsed.charAt(0) === '1') {
+        addNeg = true
       }
 
-      this.ans = this.shiftLeft(this.a, this.size) + this.q
+      // reverse string
+      const tempQ = this.qTextUsed.split('').reverse()
+
+      this.steps.normal = []
+      let accum = 0
+      let current
+
+      // Produce the steps in the program
+      for (let i = 0; i < this.size; i++) {
+        current = tempQ[i] === '1'
+          ? this.signExt(this.mTextUsed, currentSize - i)
+          : this.signExt('0', currentSize - i)
+
+        this.steps.normal.push(current)
+        accum += this.shiftLeft(parseInt(current, 2), i)
+      }
+
+      // Add the neg of m negative number
+      if (addNeg) {
+        current = this.shiftLeft(1, this.size) - this.m
+        accum += this.shiftLeft(current, this.size)
+        this.steps.normal.push(this.dec2bin(current, this.size))
+      }
+
+      this.ans = accum % this.shiftLeft(1, currentSize)
+    },
+
+    boothAlgo () {
+      // convert multiplier to extended booth
+      const currentSize = this.size * 2
+      let current
+      let accum = 0
+      const temp = this.qTextUsed + '0'
+      const max = this.shiftLeft(1, currentSize)
+
+      this.qBooth = []
+      const same = this.mNegText === this.mTextUsed
+
+      for (let i = 0; i < this.size; i++) {
+        this.qBooth.push(BOOTH_MAP[temp.substr(i, 2)])
+      }
+
+      this.steps.booth = []
+      let j = 0
+
+      for (let i = this.size - 1; i > -1; i--) {
+        switch (this.qBooth[i]) {
+          case 1:
+            current = this.signExt(this.mTextUsed, currentSize - j)
+            break
+          case -1:
+            current = same
+              ? this.zeroExt(this.mTextUsed, currentSize - j)
+              : this.signExt(this.mNegText, currentSize - j)
+            break
+          case 0:
+            current = this.signExt('0', currentSize - j)
+            break
+        }
+
+        this.steps.booth.push(current)
+        accum += this.shiftLeft(parseInt(current, 2), j++)
+      }
+
+      this.ans = accum % max
+    },
+
+    extBoothAlgo () {
+      const currentSize = this.size * 2
+      let current
+      let accum = 0
+      const max = this.shiftLeft(1, currentSize)
+      let temp = this.qTextUsed + '0'
+
+      if ((temp.length & 1) === 0) {
+        temp = temp.charAt(0) + temp
+      }
+
+      this.qExtBooth = []
+
+      for (let i = 0; i < temp.length - 1; i += 2) {
+        this.qExtBooth.push(EXT_BOOTH_MAP[temp.substr(i, 3)])
+      }
+
+      this.steps.extbooth = []
+      const same = this.mNegText === this.mTextUsed
+
+      let j = 0
+
+      for (let i = this.qExtBooth.length - 1; i > -1; i--) {
+        switch (this.qExtBooth[i]) {
+          case 2:
+            current = this.signExt(this.mTextUsed + '0', currentSize - j)
+            break
+          case -2:
+            current = same
+              ? this.zeroExt(this.mTextUsed + '0', currentSize - j)
+              : this.signExt(this.mNegText + '0', currentSize - j)
+            break
+          case 1:
+            current = this.signExt(this.mTextUsed, currentSize - j)
+            break
+          case -1:
+            current = same
+              ? this.zeroExt(this.mTextUsed, currentSize - j)
+              : this.signExt(this.mNegText, currentSize - j)
+            break
+          case 0:
+            current = this.signExt('0', currentSize - j)
+            break
+        }
+
+        this.steps.extbooth.push(current)
+        accum += this.shiftLeft(parseInt(current, 2), j)
+        j += 2
+      }
+
+      this.ans = accum % max
     },
 
     // Hides the result table
     hideShow () {
       this.show = false
+      this.steps = {}
     },
 
     showHelp () {
@@ -469,7 +647,7 @@ export default {
   },
 
   head: {
-    title: 'Sequential Circuit Binary Multiplier'
+    title: 'Binary Multiplication'
   }
 }
 </script>
@@ -513,6 +691,12 @@ input[type="text"] {
   font-family: Commodore;
   font-size: 20px;
   text-align: right;
+}
+
+select {
+  border: 2px solid black;
+  padding: 4px;
+  font-family: Commodore;
 }
 
 button {
@@ -579,18 +763,42 @@ button:disabled, button:disabled:hover {
   color: red;
 }
 
+.center {
+  display: flex;
+  justify-content: center;
+}
+
+.steps {
+  display: flex;
+  justify-content: right;
+}
+
 table {
   border-collapse: collapse;
 }
 
-tr > td {
+/* tr > td {
   border: 2px solid black;
   background-color: white;
-}
+} */
 
 td {
   vertical-align: bottom;
   text-align: right;
+
+  font-size: 20px;
+}
+
+.left-align {
+  text-align: left !important;
+}
+
+.border-top {
+  border-top: 2px solid black;
+}
+
+.border-bottom {
+  border-bottom: 2px solid black;
 }
 
 /* Selections */
@@ -598,7 +806,8 @@ td::selection,
 div::selection,
 h1::selection,
 label::selection,
-input::selection {
+input::selection,
+span::selection {
   color: white;
   background-color: black;
 }
